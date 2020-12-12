@@ -67,6 +67,7 @@ def __settings() -> tuple:
         vertical_error = int(s.get('VerticalError', 0))
     else:
         vertical_error = args.vertical_error
+    vertical_error = vertical_error // 2 * 2
     print('Folder = {}\nVerticalError = {}'.format(folder, vertical_error))
     return folder, vertical_error
 
