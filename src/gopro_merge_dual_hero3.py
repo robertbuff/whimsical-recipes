@@ -20,6 +20,20 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+# This script searches for all matching left/right video patterns in a given
+# folder and uses ffmpeg to merge them into side-by-side clips, possible with
+# an adjustment for a predefined vertical displacement (my pair requires an
+# adjustment of 16 pixels.)
+#
+# The folder and vertical error are either taken from the command line, or
+# from a config file ~/whimsical_recipes, section [GoPro Dual Hero3]. See
+# below in the function __settings() for details.
+#
+# For GoPro Hero3+'s, the input resolution is HD, and the output resolution
+# will be 4k, for full preservation of input resolution (4k is twice HD.)
+# Vertically we will up-sample two times.
+
+
 import os
 import re
 import sys
@@ -57,7 +71,7 @@ def __settings() -> tuple:
     args = arg_parser.parse_args(sys.argv[1:])
     config = configparser.ConfigParser()
     config.read(os.path.expanduser('~/.whimsical_recipes'))
-    s = config['Stereoscopic'] if 'Stereoscopic' in config else dict()
+    s = config['GoPro Dual Hero3'] if 'GoPro Dual Hero3' in config else dict()
     if args.folder is None:
         root = s.get('InputRoot', '')
         folder = '{}/{}'.format(root, input('Clip folder: {}/'.format(root)))
