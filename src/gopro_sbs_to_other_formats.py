@@ -42,24 +42,24 @@
 
 import os
 import re
-import sys
 import subprocess
 import argparse
-import configparser
+
+from gopro_functions import ask_go, environment
 
 
 def main() -> None:
     """Find all side-by-side rendered movies and convert them to anaglyph and stereoscopic formats"""
-    folder, stereoscope_center_gap = __settings()
+    common, folder, stereoscope_center_gap = __settings()
     sources = __sources(folder)
     replace_default = None
     for source, parts in sources.items():
         for tag, action in [('Anaglyph', __go_anaglyph), ('Stereoscope', __go_stereoscope)]:
             target = '{}{}({}){}'.format(folder, parts[0], tag, parts[1])
             print('Propose {} -> {}'.format(source, target))
-            go, replace_default = __ask_go(target, replace_default)
+            go, replace_default = ask_go(target, replace_default)
             if go:
-                if action(source, target, stereoscope_center_gap) != 0:
+                if action(common['ffmpeg'], source, target, stereoscope_center_gap) != 0:
                     print('Error -- aborting')
                     break
             else:
@@ -67,7 +67,7 @@ def main() -> None:
             print('')
 
 
-def __settings() -> str:
+def __settings() -> tuple:
     """Find out which folder to look for input files in"""
     arg_parser = argparse.ArgumentParser(
         description='Convert side-by-side stereo file to anaglyph and stereoscopic formats'
@@ -78,23 +78,20 @@ def __settings() -> str:
         type=int,
         help='gap in pixels between left and right sides'
     )
-    args = arg_parser.parse_args(sys.argv[1:])
-    config = configparser.ConfigParser()
-    config.read(os.path.expanduser('~/.whimsical_recipes'))
-    s = config['GoPro Dual Hero3'] if 'GoPro Dual Hero3' in config else dict()
+    args, config, common = environment(arg_parser)
     if args.folder is None:
-        root = s.get('SideBySideSourceRoot', '')
+        root = config.get('SideBySideSourceRoot', '')
         folder = '{}/{}'.format(root, input('Side-by-side input folder: {}/'.format(root)))
     else:
         folder = args.folder
     folder = '{}/'.format(folder) if not folder.endswith('/') else folder
     if args.stereoscope_center_gap is None:
-        stereoscope_center_gap = int(s.get('StereoscopeCenterGap', 0))
+        stereoscope_center_gap = int(config.get('StereoscopeCenterGap', 0))
     else:
         stereoscope_center_gap = args.stereoscope_center_gap
     stereoscope_center_gap = stereoscope_center_gap // 8 * 8
     print('Folder = {}\nStereoscopeCenterGap = {}'.format(folder, stereoscope_center_gap))
-    return folder, stereoscope_center_gap
+    return common, folder, stereoscope_center_gap
 
 
 def __sources(
@@ -112,34 +109,8 @@ def __sources(
     return sources
 
 
-def __ask_go(
-        target: str,
-        replace_default: str
-) -> tuple:
-    """Ask user whether to override existing target file"""
-    if os.path.exists(target):
-        if replace_default is None:
-            replace = None
-            while replace not in ('y', 'Y', 'n', 'N'):
-                replace = input('Replace [y|Y|n|N] ? ')
-                if replace == 'y':
-                    go = True
-                if replace == 'Y':
-                    go = True
-                    replace_default = True
-                if replace == 'n':
-                    go = False
-                if replace == 'N':
-                    go = False
-                    replace_default = False
-        else:
-            go = replace_default
-    else:
-        go = True
-    return go, replace_default
-
-
 def __go_anaglyph(
+        ffmpeg: str,
         source: str,
         target: str,
         *_
@@ -151,16 +122,17 @@ def __go_anaglyph(
         '-hide_banner -loglevel warning',
         '-i "{}"'.format(source),
         '-filter_complex',
-        '"[0:v]stereo3d=sbs2l:arcg,scale=w=2*iw:h=ih,setsar=1[v]"',
+        '"[0:v]stereo3d=sbs2l:arcg,scale=w=2*iw:h=ih,setsar=1,',
         '-map "[v]" -map "0:a"',
         '-pix_fmt yuv420p'
     ]
-    command = 'ffmpeg {} "{}"'.format(' '.join(steps), target)
+    command = '{} {} "{}"'.format(ffmpeg, ' '.join(steps), target)
     print(command)
     return subprocess.call(command, shell=True)
 
 
 def __go_stereoscope(
+        ffmpeg: str,
         source: str,
         target: str,
         stereoscope_center_gap: int
@@ -184,7 +156,7 @@ def __go_stereoscope(
         '[left][right]hstack[v]"',
         '-map "[v]" -map "0:a"'
     ]
-    command = 'ffmpeg {} "{}"'.format(' '.join(steps), target)
+    command = '{} {} "{}"'.format(ffmpeg, ' '.join(steps), target)
     print(command)
     return subprocess.call(command, shell=True)
 
