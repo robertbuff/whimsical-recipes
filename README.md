@@ -1,4 +1,4 @@
-hort program clips doing something useful in my digital life:
+Short program clips doing something useful in my digital life:
 
 # gopro_merge_dual_hero3
 
