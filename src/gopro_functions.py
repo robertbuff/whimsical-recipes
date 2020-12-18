@@ -24,6 +24,7 @@
 # This script contains helper functions for the conversion of GoPro Hero3+
 # stereo footage.
 
+
 import os
 import sys
 import argparse

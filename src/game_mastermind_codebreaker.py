@@ -20,12 +20,20 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+
+# This script simulates the codebreaker of the game of Mastermind played with
+# six colors and four pegs. The algorithm is naive and in each round picks a
+# random combination that is still viable; it does not validate the next
+# combination against a measure that judges its potential of reducing the set
+# of possibilities further. See here for additional strategies:
+# https://en.wikipedia.org/wiki/Mastermind_(board_game)
+
+
 import random
 import itertools
 
 
-def main(
-) -> None:
+def main() -> None:
     colors = ["Red", "Green", "Blue", "Yellow", "White", "Black"]
     random.shuffle(colors)
     possible_permutations = list(itertools.permutations(colors, 4))
