@@ -21,12 +21,13 @@
 # SOFTWARE.
 
 
-# This script simulates the codebreaker of the game of Mastermind played with
-# six colors and four pegs. Only unique colors are allowed.
-# The algorithm is naive and in each round picks a
-# random combination that is still viable; it does not validate the next
-# combination against a measure that judges its potential of reducing the set
-# of possibilities further. See here for additional strategies:
+# This script simulates the codebreaker of the game of Bulls & Cows played with
+# six colors and four pegs. Only unique colors are allowed. The algorithm is naive
+# and in each round picks a random combination that is still viable; it does not
+# validate the next combination against a measure that judges its potential of
+# reducing the set of possibilities further. See here for a description of the game:
+# https://en.wikipedia.org/wiki/Bulls_and_Cows
+# See here also for the modern version of the game:
 # https://en.wikipedia.org/wiki/Mastermind_(board_game)
 
 

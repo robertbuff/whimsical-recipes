@@ -23,9 +23,11 @@ sterescopic. The movie may come out of a movie editor (I'm
 using Final Cut Pro X to combine the merged Dual Hero clips
 into a movie.)
 
-# game_mastermind_codebreaker
+# game_bulls_and_cows_codebreaker
 
-This script plays the codebreaker in a game of Mastermind.
+This script plays the codebreaker in a game of Bulls & Cows.
 It uses a naive strategy that only looks ahead one move.
 The aim was to write a very short script that works on
-the phone (in Pythonista 3). 
+the phone (in Pythonista 3). I used it to impress my kids
+when playing the modern version of the game, Mastermind,
+with them.
