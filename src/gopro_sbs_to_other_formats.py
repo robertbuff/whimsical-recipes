@@ -122,7 +122,7 @@ def __go_anaglyph(
         '-hide_banner -loglevel warning',
         '-i "{}"'.format(source),
         '-filter_complex',
-        '"[0:v]stereo3d=sbs2l:arcg,scale=w=2*iw:h=ih,setsar=1,',
+        '"[0:v]stereo3d=sbs2l:arcg,scale=w=2*iw:h=ih,setsar=1[v]"',
         '-map "[v]" -map "0:a"',
         '-pix_fmt yuv420p'
     ]
