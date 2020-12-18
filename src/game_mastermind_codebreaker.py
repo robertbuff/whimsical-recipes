@@ -22,7 +22,8 @@
 
 
 # This script simulates the codebreaker of the game of Mastermind played with
-# six colors and four pegs. The algorithm is naive and in each round picks a
+# six colors and four pegs. Only unique colors are allowed.
+# The algorithm is naive and in each round picks a
 # random combination that is still viable; it does not validate the next
 # combination against a measure that judges its potential of reducing the set
 # of possibilities further. See here for additional strategies:
