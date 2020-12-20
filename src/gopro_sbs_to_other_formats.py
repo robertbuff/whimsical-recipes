@@ -54,8 +54,18 @@ def main() -> None:
     sources = __sources(folder)
     replace_default = None
     for source, parts in sources.items():
-        for tag, action in [('Anaglyph', __go_anaglyph), ('Stereoscope', __go_stereoscope)]:
-            target = '{}{}({}){}'.format(folder, parts[0], tag, parts[1])
+        for tag, action in [
+            ('Anaglyph', __go_anaglyph),
+            ('Stereoscope',  __go_stereoscope),
+            (None, __go_mono)
+        ]:
+            if tag is not None:
+                target = '{}{}({}){}'.format(folder, parts[0], tag, parts[1])
+            else:
+                ending = parts[0].strip()
+                if ending.endswith(' 3D'):
+                    ending = ending[:-3]
+                target = '{}{}{}'.format(folder, ending, parts[1])
             print('Propose {} -> {}'.format(source, target))
             go, replace_default = ask_go(target, replace_default)
             if go:
@@ -154,6 +164,27 @@ def __go_stereoscope(
             quarter_gap * 2
         ),
         '[left][right]hstack[v]"',
+        '-map "[v]" -map "0:a"'
+    ]
+    command = '{} {} "{}"'.format(ffmpeg, ' '.join(steps), target)
+    print(command)
+    return subprocess.call(command, shell=True)
+
+
+def __go_mono(
+        ffmpeg: str,
+        source: str,
+        target: str,
+        *_
+) -> int:
+    """Use ffmpeg to convert the source file to stereoscope format"""
+    print('Converting.')
+    steps = [
+        '-y',
+        '-hide_banner -loglevel warning',
+        '-i "{}"'.format(source),
+        '-filter_complex',
+        '"[0:v]crop=iw/2:ih:0:0,scale=w=2*iw:h=ih,setsar=1[v]"',
         '-map "[v]" -map "0:a"'
     ]
     command = '{} {} "{}"'.format(ffmpeg, ' '.join(steps), target)
