@@ -1,5 +1,15 @@
 Short program clips doing something useful in my digital life:
 
+# imagine
+
+This script defines a function or method decorator that
+allows the user to redefine the function or method for
+one or more points in its domain, arbitrarily, bypassing
+any calculation. The override extends to the end of a 
+"with" context, and is visible in the global code base.
+The paradigm here is one to inject imagined functional
+values globally but temporarily.
+
 # gopro_merge_dual_hero3
 
 This script takes the left and right HD videos taken with the 
