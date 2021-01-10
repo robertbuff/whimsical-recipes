@@ -24,7 +24,8 @@
 # the global namespace of functions and class methods. It's not advisable to use it for large software
 # systems. I'd view it as an intellectual exercise only.
 #
-# The following is an example:
+# See test/imagine_test.py for more complex test cases, including ones that use dynamic embedding of
+# multiple stacks of scenes. The following is a simple example for illustration:
 #
 #    class Test:
 #        @imagine
