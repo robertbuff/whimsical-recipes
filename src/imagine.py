@@ -54,6 +54,22 @@
 #    with new_world:
 #        print(t.a(0), t.a(1), t.a(2)) # now prints the original values
 #
+# Here's another sequence and what it prints, showing nesting:
+#
+#    @imagine def f(x): return x + 1
+#
+#    print(f(0))  # prints 1
+#    with f.at(0).imagine(-1):
+#        print(f(0))  # prints -1
+#        with f.at(0).imagine(-2):
+#            print(f(0))  # prints -2
+#        w = f.at(0).imagine(-2)
+#        with w:
+#            print(f(0))  # prints -2
+#        with w:  # w is already consumed
+#            print(f(0))  # prints -1
+#        print(f(0))  # prints -1
+#    print(f(0))  # prints 1
 
 from typing import Any, Union
 from types import FunctionType, LambdaType
@@ -346,3 +362,4 @@ class _Stack:
         """
         self.__cursor.top = _Scene(self.__cursor.top, None, value)
         return _Imagine(self.__cursor)
+
