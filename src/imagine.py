@@ -35,24 +35,18 @@
 #    print(t.a(0), t.a(1), t.a(2))
 #    # Test.a is the reference to the function, and t is passed in because
 #    # the override is specific to an instance of Test.
-#    with Test.a.at(t, 0).imagine(2), Test.a.at(t, 1).imagine(3):
-#        print(t.a(0), t.a(1), t.a(2))
-#    print(t.a(0), t.a(1), t.a(2))
-#
-# The example uses two terms when entering the "with" context, bur we can also
-# chain the temporary assignments:
-#
 #    with Test.a.at(t, 0).imagine(2).at(t, 1).imagine(3):
 #        print(t.a(0), t.a(1), t.a(2))
+#    print(t.a(0), t.a(1), t.a(2))
 #
 # "at" and "imagined" can also be separated:
 #
 #    new_world = Test.a.at(t, 0).imagine(2).at(t, 1).imagine(3)
 #    with new_world:
 #        print(t.a(0), t.a(1), t.a(2))
-#    # note that new_world is "consumed" and can only be used once:
+#    # we can use new_world again:
 #    with new_world:
-#        print(t.a(0), t.a(1), t.a(2)) # now prints the original values
+#        print(t.a(0), t.a(1), t.a(2))
 #
 # Here's another sequence and what it prints, showing nesting:
 #
@@ -66,8 +60,6 @@
 #        w = f.at(0).imagine(-2)
 #        with w:
 #            print(f(0))  # prints -2
-#        with w:  # w is already consumed
-#            print(f(0))  # prints -1
 #        print(f(0))  # prints -1
 #    print(f(0))  # prints 1
 
@@ -111,25 +103,26 @@ def imagine(body: FunctionType) -> FunctionType:
 
 class _Cursor:
     """
-    A helper class for a shared object holding two stack pointers. The first pointer, "top", is
-    advanced every time a new guard/value scene is defined (a scene represents an override).
-    The second pointer, "live" catches up to the live pointer every time a "with" context is
-    entered, and together with the "top" pointer is reset to its prior value every time a
-    "with" context is exited. This means imaginations are only activated inside a "with"
-    context, and we can write the following::
+    A helper class for a shared object holding the top pointer into the stack of overrides.
+    Imagines "scenes" pushed onto the stack are temporarily activated inside "with" contexts,
+    as follows::
 
         new_world = f.at(0).imagine(1)
         print(f{0)) # prints old value
         with new_world:
             print(f{0}} # prints 1
+
+    This scheme is functional until the point the "with" context is entered, when the underlying
+    function or method is modified to consult the overrides. This temporary change dynamically
+    applies globally, in the entire code space. The temporary changes are "injected" into the
+    function or method.
     """
 
     def __init__(self) -> None:
         """
-        Initializes both pointers to None.
+        Initialize top pointer to None.
         """
         self.top = None
-        self.live = None
 
 
 class _Scene:
@@ -192,7 +185,7 @@ class _At:
     point. We can picture guards that check for ranges or other types of sub-domains.
     """
 
-    def __init__(self, cursor: _Cursor, *args, **kwargs) -> None:
+    def __init__(self, cursor: _Cursor, top: _Scene, *args, **kwargs) -> None:
         """
         An instance of 'At' is used to freeze a point in parameter space for which we
         imagine a different mapping, replacing any calculated function value. This
@@ -204,13 +197,17 @@ class _At:
                 with at.imagine(i):
                     print(f(i))
 
-        :param cursor: the shared object holding pointers used for managing stack positions
+        :param cursor: the shared object holding pointers used for managing stack positions;
+        updated with global effect as "with" contexts are entered and exited
+        :param top: the top of the scene stack at the time we identify the point in parameter
+        space for which a new imagined value is defined
         :param args: the positional components of the point in parameter space for which
         an override is defined
         :param kwargs: the keyword components of the point in parameter space for which
         an override is defined
         """
         self.__cursor = cursor
+        self.__top = top
         self.__args = args
         self.__kwargs = kwargs
 
@@ -230,8 +227,7 @@ class _At:
             # We use __eq__ to test equality
             return args == self.__args and kwargs == self.__kwargs
 
-        self.__cursor.top = _Scene(self.__cursor.top, guard, value)
-        return _Imagine(self.__cursor)
+        return _Imagine(self.__cursor, _Scene(self.__top, guard, value))
 
 
 class _Imagine:
@@ -242,16 +238,19 @@ class _Imagine:
     assignment when the enclosing "with" context ends.
     """
 
-    def __init__(self, cursor: '_Cursor') -> None:
+    def __init__(self, cursor: _Cursor, top: _Scene) -> None:
         """
         Used inside a "with" context, pushes a new override value, and turns on and
         removes temporary scenes from the stack of scenes as "with" contexts are entered
         and exited.
 
         :param cursor: the shared object holding pointers used for managing stack positions
+        :param top: the top of the scene stack at the time we identify the point in parameter
+        space for which a new imagined value is defined
         """
         self.__cursor = cursor
-        self.__last = self.__cursor.live
+        self.__last = None
+        self.__top = top
 
     def at(self, *args, **kwargs) -> _At:
         """
@@ -269,29 +268,28 @@ class _Imagine:
         an override is defined
         :return: a helper object on which we can call 'imagine' in order to define the override
         """
-        return _At(self.__cursor, *args, **kwargs)
+        return _At(self.__cursor, self.__top, *args, **kwargs)
 
     def __enter__(self) -> '_Imagine':
         """
-        Turns on recently added imagined values by moving the live pointer of the shared cursor
-        object to the top of the stack.
+        Turns on recently added imagined values by moving the global top pointer of the shared cursor
+        object to the top constructed during the assembly of "_At" and "_Imagine" objects.
 
         :return: self
         """
-        self.__cursor.live = self.__cursor.top
+        self.__last = self.__cursor.top
+        self.__cursor.top = self.__top
         return self
 
     def __exit__(self, *_) -> None:
         """
         Call when the "with" context is exited, and removes those scenes with imagined
         function or method values from the stack that have been put there when the
-        "with" context was entered. Note that an override can only be used in one
-        "with" context, it is "consumed."
+        "with" context was entered.
 
         :param _: ignored, what we do is unconditional
         :return: None
         """
-        self.__cursor.live = self.__last
         self.__cursor.top = self.__last
 
 
@@ -325,7 +323,7 @@ class _Stack:
         :param kwargs: keyword arguments
         :return: the imagined mapping, or the value yielded by the evaluation of the original
         """
-        p = self.__cursor.live
+        p = self.__cursor.top
         while p is not None:
             if p.applies(*args, **kwargs):
                 return p.value
@@ -349,7 +347,7 @@ class _Stack:
         :param kwargs: the keyword components in the parameter space for which we define a new value
         :return: a class object with one useful method: "imagine"
         """
-        return _At(self.__cursor, *args, **kwargs)
+        return _At(self.__cursor, self.__cursor.top, *args, **kwargs)
 
     def imagine(self, value: Any) -> _Imagine:
         """
@@ -360,6 +358,4 @@ class _Stack:
         :param value: new value to substitute throughout
         :return: a helper object used by the context manager to pop imagined scenes
         """
-        self.__cursor.top = _Scene(self.__cursor.top, None, value)
-        return _Imagine(self.__cursor)
-
+        return _Imagine(self.__cursor, _Scene(self.__cursor.top, None, value))
