@@ -38,12 +38,28 @@
 #    with Test.a.at(t, 0).imagine(2), Test.a.at(t, 1).imagine(3):
 #        print(t.a(0), t.a(1), t.a(2))
 #    print(t.a(0), t.a(1), t.a(2))
+#
+# The example uses two terms when entering the "with" context, bur we can also
+# chain the temporary assignments:
+#
+#    with Test.a.at(t, 0).imagine(2).at(t, 1).imagine(3):
+#        print(t.a(0), t.a(1), t.a(2))
+#
+# "at" and "imagined" can also be separated:
+#
+#    new_world = Test.a.at(t, 0).imagine(2).at(t, 1).imagine(3)
+#    with new_world:
+#        print(t.a(0), t.a(1), t.a(2))
+#    # note that new_world is "consumed" and can only be used once:
+#    with new_world:
+#        print(t.a(0), t.a(1), t.a(2)) # now prints the original values
+#
 
 from typing import Any, Union
-import types
+from types import FunctionType, LambdaType
 
 
-def imagine(body: types.FunctionType) -> types.FunctionType:
+def imagine(body: FunctionType) -> FunctionType:
     """
     Decorate a function for which imagined mappings can then be defined.
     If f is the decorated function or method, we can then compute function values
@@ -67,7 +83,7 @@ def imagine(body: types.FunctionType) -> types.FunctionType:
     :param body: function or method to be decorated
     :returns: a wrapper function with new methods 'at', 'imagine'
     """
-    f = __Imagine(body)
+    f = _Stack(body)
 
     def wrapper(*args, **kwargs) -> Any:
         return f(*args, **kwargs)
@@ -77,7 +93,193 @@ def imagine(body: types.FunctionType) -> types.FunctionType:
     return wrapper
 
 
-class __Imagine:
+class _Cursor:
+    """
+    A helper class for a shared object holding two stack pointers. The first pointer, "top", is
+    advanced every time a new guard/value scene is defined (a scene represents an override).
+    The second pointer, "live" catches up to the live pointer every time a "with" context is
+    entered, and together with the "top" pointer is reset to its prior value every time a
+    "with" context is exited. This means imaginations are only activated inside a "with"
+    context, and we can write the following::
+
+        new_world = f.at(0).imagine(1)
+        print(f{0)) # prints old value
+        with new_world:
+            print(f{0}} # prints 1
+    """
+
+    def __init__(self) -> None:
+        """
+        Initializes both pointers to None.
+        """
+        self.top = None
+        self.live = None
+
+
+class _Scene:
+    """
+    A helper class holding one assignment, or "scene", containing a new, temporary mapping of a point
+    in parameter space to a value. Scenes are stored in a singly-linked list.
+    """
+
+    def __init__(self, parent: Union['_Scene, None'], guard: Union[FunctionType, LambdaType, None], value: Any):
+        """
+        Scenes are linked in a singly-linked list.
+
+        :param parent: the previous scene, or None if this is the same scene for this function or method
+        :param guard: a function checking arguments, returning True oif the override holds for them; None
+        means the override holds everywhere
+        :param value: the override value
+        """
+        self.__parent = parent
+        self.__guard = guard
+        self.__value = value
+
+    def applies(self, *args, **kwargs) -> bool:
+        """
+        An oracle that returns True if the passed-in arguments, positional and keyword, identify the point
+        or sub-space for which an override is defined.
+
+        :param args: the positional components of the point in parameter space for which
+        an override is defined
+        :param kwargs: the keyword components of the point in parameter space for which
+        an override is defined
+        :return: True if this is the imagined point, False otherwise
+        """
+        return self.__guard is None or self.__guard(*args, **kwargs)
+
+    @property
+    def value(self):
+        """
+        Accessor.
+
+        :return: the value
+        """
+        return self.__value
+
+    @property
+    def parent(self):
+        """
+        Accessor
+
+        :return: the parent or None
+        """
+        return self.__parent
+
+
+class _At:
+    """
+    A helper class that separates the definition of the point in parameter space for
+    which we define an override from the announcement of the override value. We can
+    think of an override action as adding a "scene" consisting of a "guard" and a
+    "value." An instance of "_At" embodies a guard that checks for a particular
+    point. We can picture guards that check for ranges or other types of sub-domains.
+    """
+
+    def __init__(self, cursor: _Cursor, *args, **kwargs) -> None:
+        """
+        An instance of 'At' is used to freeze a point in parameter space for which we
+        imagine a different mapping, replacing any calculated function value. This
+        instance is typically consumed immediately, but it's conceivable to use it
+        like this::
+
+            at = f.at(x, y, z)
+            for i in (0, 1, 2):
+                with at.imagine(i):
+                    print(f(i))
+
+        :param cursor: the shared object holding pointers used for managing stack positions
+        :param args: the positional components of the point in parameter space for which
+        an override is defined
+        :param kwargs: the keyword components of the point in parameter space for which
+        an override is defined
+        """
+        self.__cursor = cursor
+        self.__args = args
+        self.__kwargs = kwargs
+
+    def imagine(self, value: Any) -> '_Imagine':
+        """
+        Registers a value for the point in parameter space identified in this object.
+        The value will be pushed IN-PLACE onto the stack of scenes belonging to the
+        decorated function or method. We expect this function to be called inside a
+        "with" context. The return value will take care of the removal of the scene
+        at exit of the context.
+
+        :param value: value of any type
+        :return: a context exit handler that pops the value off the stack of scenes
+        """
+
+        def guard(*args, **kwargs) -> bool:
+            # We use __eq__ to test equality
+            return args == self.__args and kwargs == self.__kwargs
+
+        self.__cursor.top = _Scene(self.__cursor.top, guard, value)
+        return _Imagine(self.__cursor)
+
+
+class _Imagine:
+    """
+    A helper class that holds the temporary assignment of a point or otherwise
+    defined sub-space in parameter space to an alternate value. "_Imagine" completes
+    "_At." This helper class is also responsible for popping off the temporary
+    assignment when the enclosing "with" context ends.
+    """
+
+    def __init__(self, cursor: '_Cursor') -> None:
+        """
+        Used inside a "with" context, pushes a new override value, and turns on and
+        removes temporary scenes from the stack of scenes as "with" contexts are entered
+        and exited.
+
+        :param cursor: the shared object holding pointers used for managing stack positions
+        """
+        self.__cursor = cursor
+        self.__last = self.__cursor.live
+
+    def at(self, *args, **kwargs) -> _At:
+        """
+        Allow chaining of more than one override. There's two ways to define more than
+        one function or method override if they sit on the same function or method f::
+        
+            with f.at(0).imagine(1), f.at(1).imagine(2):
+                pass
+            with f.at(0).imagine(1).at(1).imagine(2):
+                pass
+
+        :param args: the positional components of the point in parameter space for which
+        an override is defined
+        :param kwargs: the keyword components of the point in parameter space for which
+        an override is defined
+        :return: a helper object on which we can call 'imagine' in order to define the override
+        """
+        return _At(self.__cursor, *args, **kwargs)
+
+    def __enter__(self) -> '_Imagine':
+        """
+        Turns on recently added imagined values by moving the live pointer of the shared cursor
+        object to the top of the stack.
+
+        :return: self
+        """
+        self.__cursor.live = self.__cursor.top
+        return self
+
+    def __exit__(self, *_) -> None:
+        """
+        Call when the "with" context is exited, and removes those scenes with imagined
+        function or method values from the stack that have been put there when the
+        "with" context was entered. Note that an override can only be used in one
+        "with" context, it is "consumed."
+
+        :param _: ignored, what we do is unconditional
+        :return: None
+        """
+        self.__cursor.live = self.__last
+        self.__cursor.top = self.__last
+
+
+class _Stack:
     """
     A helper class that stores a LIFO stack of "scenes" identifying points in
     parameter space for which we override the functional specification of the
@@ -87,88 +289,7 @@ class __Imagine:
     context is exited.
     """
 
-    class Pop:
-
-        def __init__(self, scenes: list, high_water_mark: int) -> None:
-            """
-            Used inside a "with" context and removes temporary scenes from the stack
-            of scenes.
-
-            :param scenes: the stack with scenes in FIFO order
-            :param high_water_mark: to what level should we pop scenes at exit
-            """
-            self.__scenes = scenes
-            self.__high_water_mark = high_water_mark
-
-        def __enter__(self) -> 'WakeUp':
-            """
-            No-op.
-            :return: self
-            """
-            return self
-
-        def __exit__(self, *_) -> None:
-            """
-            Call when the "with" context is exited, and removes those scenes with imagined
-            function or method values from the stack that have been put there when the
-            "with" context was created.
-
-            :param _: ignored, what we do is unconditional
-            :return: None
-            """
-            while len(self.__scenes) > self.__high_water_mark:
-                self.__scenes.pop()
-
-    class At:
-        """
-        A helper class that separates the definition of the point in parameter space for
-        which we define an override from the announcement of the override value. We can
-        think of an override action as adding a "scene" consisting of a "guard" and a
-        "value." An instance of "At" embodies a guard that checks for a particular
-        point. We can picture guards that check for ranges or other types of sub-domains.
-        """
-
-        def __init__(self, owner: '__Imagine', *args, **kwargs) -> None:
-            """
-            An instance of 'At' is used to freeze a point in parameter space for which we
-            imagine a different mapping, replacing any calculated function value. This
-            instance is typically consumed immediately, but it's conceivable to use it
-            like this::
-
-                at = f.at(x, y, z)
-                for i in (0, 1, 2):
-                    with at.imagine(i):
-                        print(f(i))
-
-            :param owner: the object used for storage by the wrapper decorator
-            :param args: the positional components of the point in parameter space for which
-            an override is defined
-            :param kwargs: the keyword components of the point in parameter space for which
-            an override is defined
-            """
-            self.__owner = owner
-            self.__args = args
-            self.__kwargs = kwargs
-
-        def imagine(self, value: Any) -> Any:
-            """
-            Registers a value for the point in parameter space identified in this object.
-            The value will be pushed IN-PLACE onto the stack of scenes belonging to the
-            decorated function or method. We expect this function to be called inside a
-            "with" context. The return value will take care of the removal of the scene
-            at exit of the contect.
-
-            :param value: value of any type
-            :return: a context exit handler that pops the value off the stack of scenes
-            """
-
-            def guard(*args, **kwargs) -> bool:
-                # We use __eq__ to test equality
-                return args == self.__args and kwargs == self.__kwargs
-
-            return self.__owner.imagine_at(guard, value)
-
-    def __init__(self, body: types.FunctionType) -> None:
+    def __init__(self, body: FunctionType) -> None:
         """
         Initialize wrapper class with original function or method, and prepare stack
         of pretend mappings. Stack frames are created and removed inside with contexts.
@@ -176,7 +297,7 @@ class __Imagine:
         :param body: original function or method for which new mappings can be defined
         """
         self.__body = body
-        self.__scenes = []
+        self.__cursor = _Cursor()
 
     def __call__(self, *args, **kwargs) -> Any:
         """
@@ -188,12 +309,14 @@ class __Imagine:
         :param kwargs: keyword arguments
         :return: the imagined mapping, or the value yielded by the evaluation of the original
         """
-        for guard, value in reversed(self.__scenes):
-            if guard is None or guard(*args, **kwargs):
-                return value
+        p = self.__cursor.live
+        while p is not None:
+            if p.applies(*args, **kwargs):
+                return p.value
+            p = p.parent
         return self.__body(*args, **kwargs)
 
-    def at(self, *args, **kwargs):
+    def at(self, *args, **kwargs) -> _At:
         """
         Define the point in parameter space for which we define a temporary mapping, ignoring
         any previous computations performed by the original function. "f.at()" is followed by
@@ -210,9 +333,9 @@ class __Imagine:
         :param kwargs: the keyword components in the parameter space for which we define a new value
         :return: a class object with one useful method: "imagine"
         """
-        return self.At(self, *args, **kwargs)
+        return _At(self.__cursor, *args, **kwargs)
 
-    def imagine(self, value: Any) -> Pop:
+    def imagine(self, value: Any) -> _Imagine:
         """
         Registers a scene in which the provided value will be used in place of any calculated or
         previously imagined value for all argument combinations, Turns the function or method
@@ -221,24 +344,5 @@ class __Imagine:
         :param value: new value to substitute throughout
         :return: a helper object used by the context manager to pop imagined scenes
         """
-        return self.imagine_at(None, value)
-
-    def imagine_at(self, guard: Union[types.FunctionType, types.LambdaType], value: Any) -> Pop:
-        """
-        Registers a scene in which the provided value will be used in place of any calculated or
-        previously imagined value for the provided point in arg space. The point is defined by
-        the guard function which checks supplied parameters. Using a guard in this manner allows
-        to use this technology for ranges and other sub-domains later. We are modifying the
-        decorated function or method IN-PLACE.
-
-        The scope of this override extends to the end of the current "with" context.
-
-        :param guard: a function that takes positionals (including "self") and keyword arguments
-        and returns Trye if the function value should be substituted
-        :param value: new value to substitute in place of any calculated value, provided
-        the guard allows it
-        :return: a helper object used by the context manager to pop imagined scenes
-        """
-        high_water_mark = len(self.__scenes)
-        self.__scenes.append((guard, value))
-        return self.Pop(self.__scenes, high_water_mark)
+        self.__cursor.top = _Scene(self.__cursor.top, None, value)
+        return _Imagine(self.__cursor)
