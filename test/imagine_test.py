@@ -90,7 +90,6 @@ class TestImagine(unittest.TestCase):
         Verify that scene creation is statically scoped in the same that the entire set of scenes
         for a function or method is determined at the time the scenes are defined.
 
-
         :return: None
         """
 
