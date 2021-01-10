@@ -66,6 +66,7 @@
 
 from typing import Any, Union
 from types import FunctionType, LambdaType
+from contextlib import AbstractContextManager
 
 
 def imagine(body: FunctionType) -> FunctionType:
@@ -241,7 +242,7 @@ class _At:
         return _Imagine(self.__cursor, _Scene(self.__top, guard, value))
 
 
-class _Imagine:
+class _Imagine(AbstractContextManager):
     """
     A helper class that holds the temporary assignment of a point or otherwise
     defined sub-space in parameter space to an alternate value. "_Imagine" completes

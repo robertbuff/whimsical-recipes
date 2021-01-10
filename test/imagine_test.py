@@ -84,7 +84,6 @@ class TestImagine(unittest.TestCase):
             self.assertEqual((f(1), f(2), f(3)), (2, -2, 4))
         self.assertEqual((f(1), f(2), f(3)), (-1, -2, -3))
 
-
     def test_scoping(self):
         """
         Verify that scene creation is statically scoped in the same that the entire set of scenes
@@ -120,6 +119,33 @@ class TestImagine(unittest.TestCase):
                 self.assertEqual((f(1), f(2), f(3)), (2, -2, 4))
             self.assertEqual((f(1), f(2), f(3)), (2, -2, -3))
         self.assertEqual((f(1), f(2), f(3)), (-1, -2, -3))
+
+    def test_two_functions(self):
+        """
+        Verify that the with statement can take overrides for two or more functions.
+
+        :return: None
+        """
+
+        @imagine
+        def f(x):
+            return -x
+
+        @imagine
+        def g(x):
+            return x + 1
+
+        w1 = f.at(1).imagine(2)
+        w2 = g.at(2).imagine(1)
+
+        self.assertEqual((f(1), g(2)), (-1, 3))
+        with w1:
+            self.assertEqual((f(1), g(2)), (2, 3))
+        with w2:
+            self.assertEqual((f(1), g(2)), (-1, 1))
+        with w1, w2:
+            self.assertEqual((f(1), g(2)), (2, 1))
+        self.assertEqual((f(1), g(2)), (-1, 3))
 
 
 if __name__ == '__main__':
