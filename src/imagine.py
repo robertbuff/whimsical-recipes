@@ -157,6 +157,16 @@ class _Scene:
         """
         return self.__guard is None or self.__guard(*args, **kwargs)
 
+    def copy_with_parent(self, parent: Union['_Scene, None']) -> '_Scene':
+        """
+        Create a copy of self, with the parent pointer redirected so alternative, larger stacks
+        of scenes can be created.
+
+        :param parent: the new parent pointer
+        :return: the new scene
+        """
+        return _Scene(parent, self.__guard, self.__value)
+
     @property
     def value(self):
         """
@@ -269,6 +279,30 @@ class _Imagine:
         :return: a helper object on which we can call 'imagine' in order to define the override
         """
         return _At(self.__cursor, self.__top, *args, **kwargs)
+
+    def dynamically_embedded(self) -> '_Imagine':
+        """
+        Scene creation is statically scope; what happens later inside "with" contexts does not
+        impact what overrides have been assembled. Using a scene stack w2 inside a context switched
+        to w1 will remove all temporary changes of w1. This can be changed bvy creating a dynamically
+        embedded copy of w2 inside the "with" context bound to w1.
+
+        :return: a new "_Imagine" object that consists of a concatenation of the stack of scenes of
+        self, with the stack of scenes currently active globally
+        """
+        if self.__cursor.top is None:
+            return self
+
+        def traverse():
+            p = self.__top
+            while p is not None:
+                yield p
+                p = p.parent
+
+        top = self.__cursor.top
+        for q in reversed(list(traverse())):
+            top = q.copy_with_parent(top)
+        return _Imagine(self.__cursor, top)
 
     def __enter__(self) -> '_Imagine':
         """

@@ -85,5 +85,43 @@ class TestImagine(unittest.TestCase):
         self.assertEqual((f(1), f(2), f(3)), (-1, -2, -3))
 
 
+    def test_scoping(self):
+        """
+        Verify that scene creation is statically scoped in the same that the entire set of scenes
+        for a function or method is determined at the time the scenes are defined.
+
+
+        :return: None
+        """
+
+        @imagine
+        def f(x):
+            return -x
+
+        w = f.at(1).imagine(2)
+        w1 = f.at(2).imagine(3)
+        w2 = f.at(3).imagine(4)
+
+        self.assertEqual((f(1), f(2), f(3)), (-1, -2, -3))
+        with w:
+            self.assertEqual((f(1), f(2), f(3)), (2, -2, -3))
+            with w1:
+                # w1 is all overrides as of time of its creation
+                self.assertEqual((f(1), f(2), f(3)), (-1, 3, -3))
+            w11 = w1.dynamically_embedded()
+            with w11:
+                # w11 inherits all overrides currently active
+                self.assertEqual((f(1), f(2), f(3)), (2, 3, -3))
+            with w2:
+                # w2 is all overrides as of time of its creation
+                self.assertEqual((f(1), f(2), f(3)), (-1, -2, 4))
+            w21 = w2.dynamically_embedded()
+            with w21:
+                # w11 inherits all overrides currently active
+                self.assertEqual((f(1), f(2), f(3)), (2, -2, 4))
+            self.assertEqual((f(1), f(2), f(3)), (2, -2, -3))
+        self.assertEqual((f(1), f(2), f(3)), (-1, -2, -3))
+
+
 if __name__ == '__main__':
     unittest.main()
