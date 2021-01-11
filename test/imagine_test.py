@@ -26,7 +26,7 @@
 
 import unittest
 
-from src.imagine import imagine
+from imagine import imagine
 
 
 class TestImagine(unittest.TestCase):
