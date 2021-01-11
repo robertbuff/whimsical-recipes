@@ -58,6 +58,28 @@ class TestImagine(unittest.TestCase):
             self.assertEqual((f(1), f(2), f(3)), (2, 3, -3))
         self.assertEqual((f(1), f(2), f(3)), (-1, -2, -3))
 
+    def test_backtrack(self):
+        """
+        Test that we can backtrack inside a context.
+
+        :return: None
+        """
+
+        @imagine
+        def f(x):
+            return -x
+
+        self.assertEqual((f(1), f(2), f(3)), (-1, -2, -3))
+        with f.at(1).imagine(2).at(2).imagine(3):
+            self.assertEqual((f(1), f(2), f(3)), (2, 3, -3))
+            with f.at(1).imagine(3):
+                self.assertEqual((f(1), f(2), f(3)), (3, 3, -3))
+                self.assertEqual((f[0](1), f[0](2), f[0](3)), (3, 3, -3))
+                self.assertEqual((f[-1](1), f[-1](2), f[-1](3)), (2, 3, -3))
+                self.assertEqual((f[-2](1), f[-2](2), f[-2](3)), (-1, -2, -3))
+            self.assertEqual((f(1), f(2), f(3)), (2, 3, -3))
+        self.assertEqual((f(1), f(2), f(3)), (-1, -2, -3))
+
     def test_branchine(self):
         """
         Test that the construction of chains of scenes is functional, without side effects

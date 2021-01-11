@@ -107,23 +107,16 @@ def imagine(body: FunctionType) -> FunctionType:
      a design principle in larger software systems.
 
     :param body: function or method to be decorated
-    :returns: a wrapper function with new methods 'at', 'imagine'
+    :returns: a wrapper function with new methods 'at', 'imagine', and the ability to backtrack
     """
-    f = _Stack(body)
-
-    def wrapper(*args, **kwargs) -> Any:
-        return f(*args, **kwargs)
-
-    wrapper.at = lambda *args, **kwargs: f.at(*args, **kwargs)
-    wrapper.imagine = lambda value: f.imagine(value)
-    return wrapper
+    return _Runtime(body)
 
 
 class _Cursor:
     """
-    A helper class for a shared object holding the top pointer into the stack of overrides.
-    Imagines "scenes" pushed onto the stack are temporarily activated inside "with" contexts,
-    as follows::
+    A helper class for a shared object holding the top pointer and its history,
+    into the stack of overrides. Imagined "scenes" pushed onto the stack are
+    temporarily activated inside "with" contexts, as follows::
 
         new_world = f.at(0).imagine(1)
         print(f{0)) # prints old value
@@ -140,7 +133,16 @@ class _Cursor:
         """
         Initialize top pointer to None.
         """
-        self.top = None
+        self.top = []
+
+    @property
+    def current(self) -> Union['_Imagine', None]:
+        """
+        Convenience function to access the currently active set of scenes.
+
+        :return: the top scene pointer for the "with" context currently activec
+        """
+        return self.top[-1] if self.top else None
 
 
 class _Scene:
@@ -277,7 +279,6 @@ class _Imagine(AbstractContextManager):
         space for which a new imagined value is defined
         """
         self.__cursor = cursor
-        self.__last = None
         self.__top = top
 
     def at(self, *args, **kwargs) -> _At:
@@ -308,7 +309,7 @@ class _Imagine(AbstractContextManager):
         :return: a new "_Imagine" object that consists of a concatenation of the stack of scenes of
         self, with the stack of scenes currently active globally
         """
-        if self.__cursor.top is None:
+        if not self.__cursor.top:
             return self
 
         def traverse():
@@ -317,7 +318,7 @@ class _Imagine(AbstractContextManager):
                 yield p
                 p = p.parent
 
-        top = self.__cursor.top
+        top = self.__cursor.current
         for q in reversed(list(traverse())):
             top = q.copy_with_parent(top)
         return _Imagine(self.__cursor, top)
@@ -340,8 +341,7 @@ class _Imagine(AbstractContextManager):
 
         :return: self
         """
-        self.__last = self.__cursor.top
-        self.__cursor.top = self.__top
+        self.__cursor.top.append(self.__top)
         return self
 
     def __exit__(self, *_) -> None:
@@ -353,7 +353,7 @@ class _Imagine(AbstractContextManager):
         :param _: ignored, what we do is unconditional
         :return: None
         """
-        self.__cursor.top = self.__last
+        self.__cursor.top.pop()
 
 
 class _ImagineMany(AbstractContextManager):
@@ -440,7 +440,7 @@ class _ImagineMany(AbstractContextManager):
                 work.extend(list(reversed(component.__components)))
 
 
-class _Stack:
+class _Runtime:
     """
     A helper class that stores a LIFO stack of "scenes" identifying points in
     parameter space for which we override the functional specification of the
@@ -460,6 +460,13 @@ class _Stack:
         self.__body = body
         self.__cursor = _Cursor()
 
+    def __getitem__(self, backtrack: int) -> '_Runtime':
+        if backtrack >= 0:
+            return self
+        stack = _Runtime(self.__body)
+        stack.__cursor.top = self.__cursor.top[0:backtrack]
+        return stack
+
     def __call__(self, *args, **kwargs) -> Any:
         """
         Before calling the original function or methods, go through the stack of scenes
@@ -470,7 +477,7 @@ class _Stack:
         :param kwargs: keyword arguments
         :return: the imagined mapping, or the value yielded by the evaluation of the original
         """
-        p = self.__cursor.top
+        p = self.__cursor.current
         while p is not None:
             if p.applies(*args, **kwargs):
                 return p.value
@@ -494,7 +501,7 @@ class _Stack:
         :param kwargs: the keyword components in the parameter space for which we define a new value
         :return: a class object with one useful method: "imagine"
         """
-        return _At(self.__cursor, self.__cursor.top, *args, **kwargs)
+        return _At(self.__cursor, self.__cursor.current, *args, **kwargs)
 
     def imagine(self, value: Any) -> _Imagine:
         """
@@ -505,4 +512,4 @@ class _Stack:
         :param value: new value to substitute throughout
         :return: a helper object used by the context manager to pop imagined scenes
         """
-        return _Imagine(self.__cursor, _Scene(self.__cursor.top, None, value))
+        return _Imagine(self.__cursor, _Scene(self.__cursor.current, None, value))
