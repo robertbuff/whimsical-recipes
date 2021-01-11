@@ -25,7 +25,9 @@
 # systems. I'd view it as an intellectual exercise only.
 #
 # See test/imagine_test.py for more complex test cases, including ones that use dynamic embedding of
-# multiple stacks of scenes. The following is a simple example for illustration:
+# multiple stacks of scenes, and tests involving more than one function.
+#
+# The following is a simple example for illustration:
 #
 #    class Test:
 #        @imagine
@@ -63,8 +65,22 @@
 #            print(f(0))  # prints -2
 #        print(f(0))  # prints -1
 #    print(f(0))  # prints 1
+#
+# We can create context managers for more than one function:
+#
+#    @imagine def f(x): return x + 1
+#    @imagine def g(x): return x - 1
+#
+#    w1 = f.at(0).imagine(g(0))
+#    w2 = g.at(0).imagine(f(0))
+#
+#    with w1 + w2:
+#        print(f(0))  # prints -1
+#        print(g(0))  # prints 1
+
 
 from typing import Any, Union
+from copy import copy
 from types import FunctionType, LambdaType
 from contextlib import AbstractContextManager
 
@@ -306,6 +322,17 @@ class _Imagine(AbstractContextManager):
             top = q.copy_with_parent(top)
         return _Imagine(self.__cursor, top)
 
+    def __add__(self, other: Union['_Imagine', '_ImagineMany']) -> '_ImagineMany':
+        """
+        We can combine more than one context manager. This makes only sense if the component
+        managers cover different functions, but we do not test that.
+
+        :param other: the other context manager with overrides for a single function or method, or
+        a set of context managers
+        :return: the combined context manager
+        """
+        return _ImagineMany(self, other)
+
     def __enter__(self) -> '_Imagine':
         """
         Turns on recently added imagined values by moving the global top pointer of the shared cursor
@@ -327,6 +354,90 @@ class _Imagine(AbstractContextManager):
         :return: None
         """
         self.__cursor.top = self.__last
+
+
+class _ImagineMany(AbstractContextManager):
+    """
+    A helper class that holds the temporary assignments for many functions or methods.
+    """
+
+    def __init__(self, *components) -> None:
+        """
+        Record the overrides that should be applied together in "with" compound statements.
+
+        :param components: a list of function/method overrides, either of type _Imagine or _ImagineMany
+        """
+        self.__components = list(components)
+
+    def dynamically_embedded(self) -> '_ImagineMany':
+        """
+        Scene creation is statically scope; what happens later inside "with" contexts does not
+        impact what overrides have been assembled. Using a compound set of scenes w2 inside a context
+        switched to w1 will remove all temporary changes of w1. This can be changed bvy creating a
+        dynamically embedded copy of w2 inside the "with" context bound to w1.
+
+        :return: a new "_ImagineMany" object that performs the dynamic embed for all of its components
+        """
+        return _ImagineMany(*[component.dynamically_embedded() for component in self.__traverse_forward()])
+
+    def __add__(self, other: Union[_Imagine, '_ImagineMany']) -> '_ImagineMany':
+        """
+        Concatenate overrides for use in a "with" compound statement. Overrides will be entered in
+        order left-to-right and exited in the opposite order.
+
+        :param other: a single function/method override, or a set of several function/method overrides
+        :return: the combined set of function/method overrides
+        """
+        return _ImagineMany(self, other)
+
+    def __enter__(self) -> '_ImagineMany':
+        """
+        Turns on imagined values for each function or method in the set.
+
+        :return: self
+        """
+        for component in self.__traverse_forward():
+            component.__enter__()
+        return self
+
+    def __exit__(self, *_) -> None:
+        """
+        Call when the "with" context is exited, and removes the imagined scenes for all function/method,
+        in reverse order in which they were entered.
+
+        :param _: ignored, what we do is unconditional
+        :return: None
+        """
+        for component in self.__traverse_backward():
+            component.__exit__(*_)
+
+    def __traverse_forward(self):
+        """
+        Helper function to traverse all concatenated components non-recursively, depth-first, left-to-right.
+
+        :return: iterator for traversal
+        """
+        work = copy(self.__components)
+        while work:
+            component = work.pop()
+            if isinstance(component, _Imagine):
+                yield component
+            else:
+                work.extend(component.__components)
+
+    def __traverse_backward(self):
+        """
+        Helper function to traverse all concatenated components non-recursively, depth-first, right-to-left.
+
+        :return: iterator for traversal
+        """
+        work = list(reversed(self.__components))
+        while work:
+            component = work.pop()
+            if isinstance(component, _Imagine):
+                yield component
+            else:
+                work.extend(list(reversed(component.__components)))
 
 
 class _Stack:

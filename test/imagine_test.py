@@ -147,6 +147,43 @@ class TestImagine(unittest.TestCase):
             self.assertEqual((f(1), g(2)), (2, 1))
         self.assertEqual((f(1), g(2)), (-1, 3))
 
+    def test_imagine_many(self):
+        """
+        Verify that we can concatenate scenes.
+
+        :return: None
+        """
+
+        @imagine
+        def f(x):
+            return -x
+
+        @imagine
+        def g(x):
+            return x + 1
+
+        @imagine
+        def h(x):
+            return x * 2
+
+        w1 = f.at(1).imagine(3)
+        w2 = g.at(2).imagine(2)
+        w3 = h.at(3).imagine(1)
+
+        self.assertEqual((f(1), g(2), h(3)), (-1, 3, 6))
+        with w1:
+            self.assertEqual((f(1), g(2), h(3)), (3, 3, 6))
+        with w2:
+            self.assertEqual((f(1), g(2), h(3)), (-1, 2, 6))
+        with w3:
+            self.assertEqual((f(1), g(2), h(3)), (-1, 3, 1))
+        with (w1 + w2) + w3:
+            self.assertEqual((f(1), g(2), h(3)), (3, 2, 1))
+        self.assertEqual((f(1), g(2), h(3)), (-1, 3, 6))
+        with w1 + (w2 + w3):
+            self.assertEqual((f(1), g(2), h(3)), (3, 2, 1))
+        self.assertEqual((f(1), g(2), h(3)), (-1, 3, 6))
+
 
 if __name__ == '__main__':
     unittest.main()
