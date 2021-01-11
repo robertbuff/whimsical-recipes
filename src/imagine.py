@@ -252,7 +252,6 @@ class _At:
         :param value: value of any type
         :return: a context exit handler that pops the value off the stack of scenes
         """
-
         def guard(*args, **kwargs) -> bool:
             # We use __eq__ to test equality
             return args == self.__args and kwargs == self.__kwargs
@@ -461,10 +460,23 @@ class _Runtime:
         self.__cursor = _Cursor()
 
     def __getitem__(self, backtrack: int) -> '_Runtime':
-        if backtrack >= 0:
+        """
+        Extract all contexts from 0 through and including the one at position "backtrack" in the list of
+        all contexts. Useful for comparing function or method values within and without the current context,
+        without leaving the context::
+            w1 = f.at(0).imagine(1)
+            with w1:
+                # Note that f(0) == f[-1](0) is equivalent
+                print('Difference is {}'.format(f[-1](0) - f[-2](0)))
+
+        :param backtrack: index up to which we should backtrack, in Python slice accounting, so -1
+        means no backtracking, -2 means backtrack one context, etc
+        :return: a callable object of type _Runtime that has the requested number of contexts popped off
+        """
+        if backtrack == -1:
             return self
         stack = _Runtime(self.__body)
-        stack.__cursor.top = self.__cursor.top[0:backtrack]
+        stack.__cursor.top = self.__cursor.top[0:backtrack + 1]
         return stack
 
     def __call__(self, *args, **kwargs) -> Any:
