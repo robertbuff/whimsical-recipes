@@ -12,7 +12,7 @@ command = (
     " notebook"
     " --NotebookApp.allow_origin=$(gp url 8888)"
     " --ip=*"
-    " --NotebookApp.password={}".format(password_encrypted)
+    " --NotebookApp.password='{}'".format(password_encrypted)
 )
 
 print('\n\nClick <Make Public>, <Open Browser> and enter Jupyter password {}\n\n'.format(
