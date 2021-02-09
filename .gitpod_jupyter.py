@@ -15,7 +15,7 @@ command = (
     " --NotebookApp.password='{}'".format(password_encrypted)
 )
 
-print('\n\nClick <Make Public>, <Open Browser> and enter Jupyter password {}\n\n'.format(
+print('\n\nIn the ports tab, click <Make Public> and <Open Browser>.\n\nThe Jupyter password is{}\n\n'.format(
     password
 ))
 
