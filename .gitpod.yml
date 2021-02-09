@@ -2,5 +2,9 @@ image:
   file: .gitpod.Dockerfile
 
 tasks:
-  - init: 'echo "TODO: Replace with init/build command"'
-    command: 'echo "TODO: Replace with command to start project"'
+  - init: 'echo "Welcome!"'
+  - command: 'python3 .gitpod_jupyter.py'
+
+ports:
+  - port: 8888
+    onOpen: open-browser
