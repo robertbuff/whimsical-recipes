@@ -4,8 +4,14 @@ image:
 tasks:
   - init: 'echo "Welcome!"'
   - command: 'python3 .gitpod_jupyter.py'
+<<<<<<< HEAD
     name: 'Jupyter notebooks'
 
 ports:
   - port: 5000-9000
+=======
+
+ports:
+  - port: 8888
+>>>>>>> 5045e30e7cf7f3ad25df99a1ef59f2d051e2c8c2
     onOpen: open-browser
