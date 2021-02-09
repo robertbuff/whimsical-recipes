@@ -5,3 +5,9 @@ tasks:
   - init: 'echo Terminal1'
   - command: 'sleep 3 && python3 .gitpod_jupyter.py'
     name: 'Jupyter notebooks'
+
+ports:
+  - port: 8888
+    onOpen: open-browser
+  - port: 5432
+    onOpen: ignore
