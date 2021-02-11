@@ -2,12 +2,13 @@ image:
   file: .gitpod.Dockerfile
 
 tasks:
-  - init: 'echo Terminal1'
+  - init: yarn
+    command: ./scripts/code.sh
+    name: 'Shell'
   - command: 'python3 .gitpod_jupyter.py'
     name: 'Jupyter'
 
 ports:
+  - port: 6080
   - port: 8888
-    onOpen: ignore
-  - port: 5432
     onOpen: ignore
