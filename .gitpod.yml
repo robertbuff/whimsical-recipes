@@ -11,4 +11,3 @@ tasks:
 ports:
   - port: 6080
   - port: 8888
-    onOpen: ignore
