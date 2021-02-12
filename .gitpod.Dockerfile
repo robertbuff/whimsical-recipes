@@ -9,6 +9,6 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && rm -rf /tmp/*
 
-RUN printf "\n# Set PYTHONPATH.\nexport PYTHONPATH=$THEIA_REPO_ROOT/src\n" >> ~/.bashrc
+RUN printf "\n# Set PYTHONPATH to the only workspace folder.\nexport PYTHONPATH=export PYTHONPATH=/`ls /workspace`/src\n" >> ~/.bashrc
 
 USER gitpod
