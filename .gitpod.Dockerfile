@@ -9,6 +9,6 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && rm -rf /tmp/*
 
-RUN printf "\n# Set PYTHONPATH.\nexport PYTHONPATH=$GITPOD_REPO_ROOT/src\n" >> ~/.bashrc
+RUN printf "\n# Set PYTHONPATH.\nexport PYTHONPATH=$THEIA_REPO_ROOT/src\n" >> ~/.bashrc
 
 USER gitpod
