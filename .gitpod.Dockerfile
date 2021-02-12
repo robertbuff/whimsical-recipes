@@ -9,7 +9,6 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && rm -rf /tmp/*
 
-RUN printf "\n# Set PYTHONPATH to the only workspace folder.\nexport PYTHONPATH=/workspace/whimsical-recipes/src\n" >> ~/.bashrc
-RUN printf "echo $GITPOD_REPO_ROOT >~/.env.dump\n" >> ~/.bashrc
+RUN printf "\n# Set PYTHONPATH to the only workspace folder.\nexport PYTHONPATH=\$GITPOD_REPO_ROOT/src\n" >> ~/.bashrc
 
 USER gitpod
